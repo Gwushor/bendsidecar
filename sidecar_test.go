@@ -5,6 +5,9 @@ package bendsidecar_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +122,48 @@ func TestArgsReachTheKernel(t *testing.T) {
 	if n, err := p.CallInts(context.Background(), "a", "b", "c"); err != nil || n[0] != 4 {
 		t.Fatalf("three args: %v, %v (want 4)", n, err)
 	}
+}
+
+func TestCallFilesCarriesPayload(t *testing.T) {
+	p := scriptProgram(t, "testdata/length.sh")
+	payload := make([]byte, 1<<20) // 1 MiB of binary noise, well past ARG_MAX
+	for i := range payload {
+		payload[i] = byte(i*7 + 13)
+	}
+	out, err := p.CallFiles(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("CallFiles: %v", err)
+	}
+	if got, want := strings.TrimSpace(string(out)), fmt.Sprint(len(payload)); got != want {
+		t.Fatalf("out.bin = %q, want %q", got, want)
+	}
+}
+
+func TestCallFilesRejectsSilentKernel(t *testing.T) {
+	p := scriptProgram(t, "testdata/nothing.sh")
+	_, err := p.CallFiles(context.Background(), []byte("x"))
+	if !bendsidecar.Is(err, bendsidecar.KindBadInput) {
+		t.Fatalf("err = %v, want KindBadInput for a kernel that writes no out.bin", err)
+	}
+}
+
+// scriptProgram wraps a shell script as the built binary, so the transport can be
+// tested without a Bend build on every run.
+func scriptProgram(t *testing.T, script string) *bendsidecar.Program {
+	t.Helper()
+	abs, err := filepath.Abs(script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(abs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p, err := bendsidecar.Open(context.Background(), "testdata/sum.bend",
+		bendsidecar.Binary(abs), bendsidecar.Timeout(10*time.Second))
+	if err != nil {
+		t.Fatalf("Open(%s): %v", script, err)
+	}
+	return p
 }
 
 func TestVerdictNeedsTheKernel(t *testing.T) {

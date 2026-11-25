@@ -183,6 +183,11 @@ func resolveSource(src string) (string, error) {
 
 // Call runs the program once with these arguments and returns what it printed.
 func (p *Program) Call(ctx context.Context, args ...string) (Result, error) {
+	return p.call(ctx, "", args)
+}
+
+// call is Call with a working directory: empty means inherit the host's.
+func (p *Program) call(ctx context.Context, dir string, args []string) (Result, error) {
 	if p.sem != nil {
 		select {
 		case p.sem <- struct{}{}:
@@ -204,6 +209,7 @@ func (p *Program) Call(ctx context.Context, args ...string) (Result, error) {
 	argv = append(argv, args...)
 
 	cmd := exec.CommandContext(cctx, p.bin, argv...)
+	cmd.Dir = dir
 	cmd.Env = p.childEnv()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var out bytes.Buffer

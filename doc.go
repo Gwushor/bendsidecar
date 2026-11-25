@@ -8,10 +8,21 @@
 //
 // # The contract
 //
-// A Bend program is expected to read its input from argv (IO.args) and write its
-// answer to stdout (IO.print). Base has no file I/O yet, so large payloads can
-// only travel as arguments (ARG_MAX, ~2 MB) or through the program's own foreign
-// effects — in which case pass a file path in argv and document it on the program.
+// Two transports, both plain bytes:
+//
+//   - Call: arguments in (IO.args), text out (IO.print). Numbers as
+//     whitespace-separated text are the cheapest thing both sides parse. Capped by
+//     ARG_MAX (~2 MB).
+//   - CallFiles: the child runs in a fresh directory that holds InFile, and leaves
+//     its answer in OutFile. Base does have file effects — File.open, File.read,
+//     File.read_line, File.write, File.size, File.close, unwrapped with
+//     IO.pass(File, File.open(InFile, "rb")) — so any payload size works.
+//
+// Anything Base still lacks can be added by the program itself: a Bend def whose
+// body is `import "./effs/x.c"` (plus a .js twin for the dev runner) is a foreign
+// effect. Bend publishes packages too (--publish / link), which is how such a
+// helper travels between projects. Remember that a foreign effect has no ABI
+// promise: Bend's own guide says to rebuild effects with every compiler update.
 //
 // # What is NOT guaranteed
 //
