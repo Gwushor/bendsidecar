@@ -4,6 +4,8 @@ package bendsidecar_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -164,6 +166,56 @@ func scriptProgram(t *testing.T, script string) *bendsidecar.Program {
 		t.Fatalf("Open(%s): %v", script, err)
 	}
 	return p
+}
+
+func TestPrebuiltNeedsNoCompiler(t *testing.T) {
+	src := "testdata/args.bend"
+	built := open(t, src)
+	real := built.Path()
+
+	body, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(body)
+	hash := hex.EncodeToString(sum[:8])
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "args-"+hash)
+	copyFile(t, real, dest)
+
+	// The compiler is deliberately unreachable: a pass proves nothing compiled.
+	p, err := bendsidecar.Open(context.Background(), src,
+		bendsidecar.Prebuilt(dir), bendsidecar.RequirePrebuilt(),
+		bendsidecar.BendPath(filepath.Join(dir, "no-such-bend")),
+		bendsidecar.Timeout(10*time.Second))
+	if err != nil {
+		t.Fatalf("Open with prebuilt: %v", err)
+	}
+	if p.Path() != dest {
+		t.Fatalf("Path = %s, want the prebuilt %s", p.Path(), dest)
+	}
+	if n, err := p.CallInts(context.Background()); err != nil || n[0] != 1 {
+		t.Fatalf("prebuilt call: %v, %v (want 1)", n, err)
+	}
+}
+
+func TestRequirePrebuiltFailsClosed(t *testing.T) {
+	_, err := bendsidecar.Open(context.Background(), "testdata/args.bend",
+		bendsidecar.Prebuilt(t.TempDir()), bendsidecar.RequirePrebuilt())
+	if !bendsidecar.Is(err, bendsidecar.KindBadInput) {
+		t.Fatalf("err = %v, want KindBadInput when no prebuilt binary matches", err)
+	}
+}
+
+func copyFile(t *testing.T, from, to string) {
+	t.Helper()
+	body, err := os.ReadFile(from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, body, 0o755); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestVerdictNeedsTheKernel(t *testing.T) {

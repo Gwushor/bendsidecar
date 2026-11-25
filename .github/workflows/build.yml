@@ -1,0 +1,33 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - name: install bend
+        run: |
+          curl -fsSL https://bend-lang.com/install.sh | sh
+          echo "$HOME/.bend/bin" >> "$GITHUB_PATH"
+      - name: bend version
+        run: bend version
+      - name: vet and test
+        run: |
+          go vet ./...
+          go test ./... -count=1
+      - name: build kernels
+        # Precompiled binaries plus manifest.json: a deployment ships these and
+        # never needs the compiler.
+        run: go run ./cmd/bendbuild -src . -out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernels
+          path: dist

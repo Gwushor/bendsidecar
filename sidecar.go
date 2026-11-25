@@ -124,16 +124,18 @@ func StderrLimit(n int) Option { return func(p *Program) { p.stderrLimit = n } }
 
 // Program is one Bend file, built and ready to run.
 type Program struct {
-	src          string
-	bin          string
-	bend         string
-	threads      int
-	timeout      time.Duration
-	buildTimeout time.Duration
-	env          []string
-	validate     func([]byte) error
-	stderrLimit  int
-	sem          chan struct{}
+	src             string
+	bin             string
+	bend            string
+	threads         int
+	timeout         time.Duration
+	buildTimeout    time.Duration
+	env             []string
+	validate        func([]byte) error
+	stderrLimit     int
+	prebuiltDir     string
+	requirePrebuilt bool
+	sem             chan struct{}
 }
 
 // Open checks the source, builds it if the cached binary is stale, and returns a
