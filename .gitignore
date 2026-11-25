@@ -1,0 +1,7 @@
+/bendsidecar
+/bin/
+*.test
+*.out
+.DS_Store
+.idea/
+.vscode/
